@@ -34,7 +34,8 @@ console.log({ RPC });
 
 declare global {
   interface Window {
-    libp2p: Libp2p<any>;
+    libp2p1: Libp2p<any>;
+    libp2p2: Libp2p<any>;
     multiaddr: any;
   }
 }
@@ -108,19 +109,12 @@ interface PeerEventTarget extends EventTarget {
   };
 }
 
-var libp2p: Libp2p<any>;
-function Peers({ style }) {
+function Peers({ style, libP2PInstance }) {
   const [peers, setPeers] = useState([]);
   const [selfPeer, setSelfPeer] = useState("");
-  const [libP2PInstance, setlibP2PInstance] = useState<Libp2p<any>>();
 
   if (!libP2PInstance) {
-    console.log("setting up lib p2p instance");
-    createLibp2p(libp2pDefaults()).then((lib) => {
-      window.libp2p = lib;
-      libp2p = lib;
-      setlibP2PInstance(lib);
-    });
+    console.log("there is no lib p2p instance");
   }
   const handler: EventHandler<CustomEvent<Message>> = (
     event: CustomEvent<Message>
@@ -163,12 +157,12 @@ function Peers({ style }) {
       libp2p.services.pubsub.removeEventListener("message", handler);
       libp2p.services.pubsub.unsubscribe(topic);
     };
-  }, [libP2PInstance]);
+  }, [libP2PInstance, peers]);
 
   return (
     <div style={style}>
       <h2>self: </h2>
-      <span>{selfPeer}</span>
+      <span>{libP2PInstance.peerId.toString()}</span>
       <h2>libp2p.getPeers()</h2>
       {libP2PInstance ? (
         libP2PInstance.getPeers().map((peer, i) => {
@@ -199,26 +193,40 @@ function Peers({ style }) {
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
-root.render(
-  <>
-    <Peers
-      style={{
-        width: "45vw",
-        height: "100vh",
-        border: "1px solid blue",
-        display: "inline-block",
-        margin: "0.5em",
-      }}
-    />
-    <Peers
-      style={{
-        width: "45vw",
-        height: "100vh",
-        float: "right",
-        display: "inline-block",
-        border: "1px solid green",
-        margin: "0.5em",
-      }}
-    />
-  </>
-);
+
+Promise.all([
+  createLibp2p(libp2pDefaults()).then((lib) => {
+    window.libp2p1 = lib;
+    return lib;
+  }),
+  createLibp2p(libp2pDefaults()).then((lib) => {
+    window.libp2p2 = lib;
+    return lib;
+  }),
+]).then(([lib1, lib2]) => {
+  root.render(
+    <>
+      <Peers
+        libP2PInstance={lib1}
+        style={{
+          width: "45vw",
+          height: "100vh",
+          border: "1px solid blue",
+          display: "inline-block",
+          margin: "0.5em",
+        }}
+      />
+      <Peers
+        libP2PInstance={lib2}
+        style={{
+          width: "45vw",
+          height: "100vh",
+          float: "right",
+          display: "inline-block",
+          border: "1px solid green",
+          margin: "0.5em",
+        }}
+      />
+    </>
+  );
+});
