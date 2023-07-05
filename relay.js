@@ -23,7 +23,7 @@ const server = await createLibp2p({
   transports: [
     webSockets({
       filter: filters.all,
-      rejectUnauthorized: false,
+      //rejectUnauthorized: false,
     }),
   ],
   connectionEncryption: [noise()],
@@ -51,7 +51,9 @@ console.log(
 function reportPeers() {
   console.log(
     "peers",
-    server?.getPeers().map((p) => p.toString())
+    server?.getPeers().map((p) => {
+      return p.toString(); // + " " + p?.getMultiaddrs().map((ma) => ma.toString());
+    })
   );
 }
 setInterval(() => {

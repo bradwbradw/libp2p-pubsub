@@ -1,9 +1,6 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import ReactDOM from "react-dom/client";
-import "./index.css";
-import App from "./App";
-import reportWebVitals from "./reportWebVitals";
 import { EventHandler } from "@libp2p/interfaces/events";
 import { Message } from "@libp2p/interface-pubsub";
 import { createLibp2p, type Libp2p } from "libp2p";
@@ -28,7 +25,7 @@ import { all } from "@libp2p/websockets/filters";
 import { peerId } from "./relay-peerid.js";
 import type { ConnectionGater } from "@libp2p/interface-connection-gater";
 import { RPC } from "@chainsafe/libp2p-gossipsub/message";
-import { PeerCertificate } from "tls";
+//import { PeerCertificate } from "tls";
 
 console.log({ RPC });
 
@@ -110,8 +107,8 @@ interface PeerEventTarget extends EventTarget {
 }
 
 function Peers({ style, libP2PInstance }) {
-  const [peers, setPeers] = useState([]);
-  const [selfPeer, setSelfPeer] = useState("");
+  const [discoveredPeers, setDiscoveredPeers] = useState([]);
+  const [peerStore, setPeerStore] = useState([]); //libP2PInstance.getPeers()
 
   if (!libP2PInstance) {
     console.log("there is no lib p2p instance");
@@ -124,61 +121,54 @@ function Peers({ style, libP2PInstance }) {
     }
   };
 
+  var interval = useRef(null);
   useEffect(() => {
     const peerConnectHandler: EventHandler<CustomEvent> = (
       event: CustomEvent
     ): void => {
       var target = event.target as PeerEventTarget;
       console.log("discovered peer", target.peerId.toString());
-      var newPeers = [...peers, target.peerId.toString()];
-      setPeers(newPeers);
-    };
-
-    const selfPeerUpdateHandler: EventHandler<CustomEvent> = (
-      event: CustomEvent
-    ): void => {
-      var target = event.target as PeerEventTarget;
-      console.log("self peer update", target.peerId.toString());
-      setSelfPeer(target.peerId.toString());
+      var newPeers = [...discoveredPeers, target.peerId.toString()];
+      setDiscoveredPeers(newPeers);
     };
 
     if (!libP2PInstance) return;
     console.log("got lib p2p instance");
     var libp2p = libP2PInstance;
     libp2p.addEventListener("peer:discovery", peerConnectHandler);
-    libp2p.addEventListener("self:peer:update", selfPeerUpdateHandler);
     libp2p.services.pubsub.addEventListener("message", handler);
     libp2p.services.pubsub.subscribe(topic);
+
+    interval.current = setInterval(() => {
+      console.log("update peer store");
+      setPeerStore(libp2p.getPeers());
+    }, 500);
 
     return () => {
       console.log("teardown");
       libp2p.removeEventListener("peer:discovery", peerConnectHandler);
-      libp2p.removeEventListener("self:peer:update", selfPeerUpdateHandler);
       libp2p.services.pubsub.removeEventListener("message", handler);
       libp2p.services.pubsub.unsubscribe(topic);
+      clearInterval(interval.current);
     };
-  }, [libP2PInstance, peers]);
+  }, [libP2PInstance, discoveredPeers]);
 
+  //  setPeerStore(libP2PInstance.getPeers());
   return (
     <div style={style}>
       <h2>self: </h2>
       <span>{libP2PInstance.peerId.toString()}</span>
       <h2>libp2p.getPeers()</h2>
-      {libP2PInstance ? (
-        libP2PInstance.getPeers().map((peer, i) => {
-          var s = peer.toString();
-          return (
-            <div key={i + "" + s}>
-              <p>{s}</p>
-            </div>
-          );
-        })
-      ) : (
-        <p>initializing...</p>
-      )}
-
+      {peerStore.map((peer, i) => {
+        var s = peer.toString();
+        return (
+          <div key={i + "" + s}>
+            <p>{s}</p>
+          </div>
+        );
+      })}
       <h2>discovered peers</h2>
-      {peers.map((peer, i) => {
+      {discoveredPeers.map((peer, i) => {
         var s = peer.toString();
         return (
           <div key={i + "" + s}>
@@ -206,6 +196,10 @@ Promise.all([
 ]).then(([lib1, lib2]) => {
   root.render(
     <>
+      <pre>
+        There are two libp2p instances: use "libp2p1" and "libp2p2" in the
+        console to interact directly
+      </pre>
       <Peers
         libP2PInstance={lib1}
         style={{
